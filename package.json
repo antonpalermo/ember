@@ -1,8 +1,13 @@
 {
   "name": "ember",
   "private": true,
-  "devDependencies": {
-    "prettier": "^3.4.2"
+  "scripts": {
+    "dev": "turbo dev"
   },
-  "license": "MIT"
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3"
+  },
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.1"
 }
