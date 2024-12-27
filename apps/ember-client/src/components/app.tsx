@@ -9,8 +9,8 @@ const stunServers = [
 ];
 
 export default function App() {
-  const wsClient = new WebSocket("ws://localhost:8080");
-  const peerConnection = new RTCPeerConnection({ iceServers: stunServers });
+  const wsRef = React.useRef<WebSocket | null>(null);
+  const peerConnectionRef = React.useRef<RTCPeerConnection | null>(null);
 
   const [mediaDetails, setMediaDetails] = React.useState({
     audio: {
@@ -26,6 +26,11 @@ export default function App() {
   const videoPlaceholder = React.useRef<HTMLVideoElement>(null);
 
   React.useEffect(() => {
+    wsRef.current = new WebSocket("ws://localhost:8080");
+    peerConnectionRef.current = new RTCPeerConnection({
+      iceServers: stunServers
+    });
+
     async function getMediaStream() {
       const media = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -51,35 +56,42 @@ export default function App() {
       }
     }
 
-    if (wsClient.OPEN) {
-      wsClient.onmessage = async e => {
-        const message = JSON.parse(e.data);
-        if (message.event === "offer:response") {
-          peerConnection.setRemoteDescription(
-            new RTCSessionDescription(message.offer)
-          );
+    const ws = wsRef.current;
+    const peerConnection = peerConnectionRef.current;
 
-          const answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
+    ws.onmessage = async e => {
+      const message = JSON.parse(e.data);
+      if (message.event === "offer:response") {
+        await peerConnection.setRemoteDescription(
+          new RTCSessionDescription(message.offer)
+        );
 
-          wsClient.send(JSON.stringify({ event: "answer:request", answer }));
-        }
-      };
-    }
-    
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        ws.send(JSON.stringify({ event: "answer:request", answer }));
+      }
+    };
+
     getMediaStream();
 
-    // return () => {
-    //   wsClient.close();
-    // };
+    return () => {
+      peerConnection.close();
+      if (ws.readyState === ws.OPEN) {
+        ws.close();
+      }
+    };
   }, []);
 
   async function makeCall() {
+    if (!peerConnectionRef.current || !wsRef.current) return;
+
+    const peerConnection = peerConnectionRef.current;
     const offer = await peerConnection.createOffer();
 
     await peerConnection.setLocalDescription(offer);
 
-    wsClient.send(JSON.stringify({ event: "offer:request", offer }));
+    wsRef.current.send(JSON.stringify({ event: "offer:request", offer }));
   }
 
   return (
